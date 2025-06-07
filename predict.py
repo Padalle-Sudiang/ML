@@ -133,21 +133,31 @@ def send_result_to_api(plate_number, plate_type, image_filename):
             response = requests.post(API_ENTRY, data=data, files=files)
             print("[+] API Response:", response.text)
 
-            # === Tambahan: Trigger servo jika response sukses ===
-            if response.status_code == 200:
-                print("API success, triggering Raspberry Pi servo...")
-                try:
-                    rpi_ip = "http://10.12.12.251:5050/servo/open"  # Ganti IP sesuai Raspberry Pi kamu
-                    servo_response = requests.post(rpi_ip)
-                    if servo_response.status_code == 200:
-                        print("✅ Servo triggered successfully.")
+            # Coba parse JSON response dari API
+            try:
+                response_json = response.json()
+                is_illegal = response_json.get("illegal_status", {}).get("is_illegal", False)
+
+                if response.status_code == 200:
+                    if is_illegal:
+                        print("🚫 Plate is marked as illegal. Servo will NOT be triggered.")
                     else:
-                        print("❌ Failed to trigger servo:", servo_response.status_code)
-                except Exception as e:
-                    print("❗ Error contacting Raspberry Pi:", e)
+                        print("✅ Plate is legal. Triggering Raspberry Pi servo...")
+                        try:
+                            rpi_ip = "http://10.12.12.251:5050/servo/open"  # Ganti IP sesuai Raspberry Pi kamu
+                            servo_response = requests.post(rpi_ip)
+                            if servo_response.status_code == 200:
+                                print("✅ Servo triggered successfully.")
+                            else:
+                                print("❌ Failed to trigger servo:", servo_response.status_code)
+                        except Exception as e:
+                            print("❗ Error contacting Raspberry Pi:", e)
+            except Exception as e:
+                print("❗ Failed to parse API JSON response:", e)
 
     except Exception as e:
         print("[!] Failed to send data to API:", e)
+
 
 
 def send_result_to_api_exit(plate_number, plate_type, image_filename):
